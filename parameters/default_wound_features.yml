@@ -1,12 +1,12 @@
 input:
   # Indicate the original image name, the mask name (tif files that are normally in the "data" folder).
-  mask_path: '../data/data_yapic/stacked_mask.tif' # where the input will be loaded
-  intensity_path: '../data/data_yapic/stacked_raw.tif' # where the input will be loaded
+  mask_path: '../data/results/chan_vese/tricho8_stretched.tif' # where the input will be loaded
+  intensity_path: '../data/tricho8_stretched.tif' # where the input will be loaded
   axes: 'TYX' # the axis order in the input (for exemple 'TCYX' means (time, channel, y, x))
   rearrange_pattern: None # please read the einops documentation
 output:
   # Indicate the name of the csv file, that will correspond to the final table with the analyzed data.
-  path: '../data/results/figures/compare/features_annotated.csv' # where the output will be saved
+  path: '../data/results/figures/chanvese/tricho8_contrasted_stretched.csv' # where the output will be saved
   rearrange_pattern: None # please read the einops documentation
 features:
   # Choose the properties you would like to extract from the binary mask (= segmentation):

@@ -1,9 +1,9 @@
 input:
-  path: "../data/algae_bis.tif" # where the output will be loaded
+  path: "../data/tricho8_stretched.tif" # where the output will be loaded
   axes: "TYX" # the axis order in the input (for exemple 'TCYX' means (time, channel, y, x))
   rearrange_pattern: None # please read the einops documentation
 output:
-  path: "../data/results/algae_masked_chanvese.tif" # where the output will be saved
+  path: "../data/results/chan_vese/tricho8_stretched.tif" # where the output will be saved
   axes: "TYX" # the axis order in the input (for exemple 'TCYX' means (time, channel, y, x))
   rearrange_pattern: None # please read the einops documentation
 chanvese:
