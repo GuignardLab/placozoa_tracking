@@ -165,3 +165,11 @@ data/
 !models/place_holder
 
 pipeline.py
+
+parameters/
+notebooks/segmentation_YAPIC_train.ipynb
+notebooks/segmentation_yapic.ipynb
+notebooks/segmentation_post_process_holes.ipynb
+notebooks/features_creation.ipynb
+notebooks/segmentation_chanvese.ipynb
+notebooks/segmentation_otsu.ipynb
