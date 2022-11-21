@@ -164,8 +164,6 @@ data/
 !data/results/place_holder
 !models/place_holder
 
-pipeline.py
-
 parameters/
 notebooks/segmentation_YAPIC_train.ipynb
 notebooks/segmentation_yapic.ipynb
