@@ -16,6 +16,12 @@ from scipy.optimize import linear_sum_assignment
 from scipy.sparse import csr_matrix
 from scipy.sparse.csgraph import min_weight_full_bipartite_matching
 from skimage.measure import label, regionprops_table
+from scipy.spatial.distance import cdist
+from scipy.interpolate import InterpolatedUnivariateSpline
+import morphsnakes as ms
+from skimage.filters import rank
+from skimage.morphology import disk
+import skimage.measure
 
 
 # Preprocessing
@@ -45,7 +51,7 @@ def stretch(im):
         
     return stretch
 
-def alg(im):
+def pre_segm(im):
     '''
     Parameters
     ----------
@@ -63,8 +69,8 @@ def alg(im):
         - return the segmented image 
 
     '''
-    
-    im_final = np.zeros_like(im)
+    im_final_alg = np.zeros_like(im)
+    im_final_org = np.zeros_like(im)
     
     # Preallocating mask array
     footprint = morphology.footprints.disk(1)
@@ -77,7 +83,7 @@ def alg(im):
         # Use white_tophat and gaussian filter on the frame
         image = im[plane,...]
 
-        image = morphology.white_tophat(image, footprint)
+        image = morphology.black_tophat(image, footprint)
         image = filters.gaussian(image, sigma = 2)
 
         # Threshold the result & label each detected region
@@ -102,13 +108,15 @@ def alg(im):
         binary_mask = np.where(labels == vol_list.index(max(vol_list))+1, 1, 0)
 
         #remove the largest component
-        m = fill - binary_mask
+        alg = fill - binary_mask
+        org = binary_mask
         
-        im_final[plane,...] = m
+        im_final_alg[plane,...] = alg
+        im_final_org[plane,...] = org
         
-    return im_final
+    return im_final_alg,im_final_org
 
-def correct(mask_alg,raw_img):
+def correct(raw_img,pre_segm,mask_alg):
     '''
     Parameters
     ----------
@@ -135,12 +143,16 @@ def correct(mask_alg,raw_img):
     new_image = np.zeros_like(raw_img) 
     
     for plane in range(np.shape(raw_img)[0]):
+        
+        #create the mask by subtracting the algae and the environment
+
+        mask_img = mask_alg[plane,...] * (pre_segm[plane,...] == 0.)
 
         #correct the image based on the substraction
-
-        new_image[plane,...] = raw_img[plane,...] * (mask_alg[plane,...] == 0.)
+        new_image[plane,...] = raw_img[plane,...] * (mask_img == 0.)
+        #plt.imshow(new_image[plane,...])
         
-        new_image[plane,...][new_image[plane,...] == 0] = np.mean(raw_img[plane,...]) 
+        new_image[plane,...][new_image[plane,...] == 0] = np.mean(raw_img[plane,...]) # change the value of the algae by 50 (arbitrary)
 
     return new_image
 
@@ -170,28 +182,31 @@ def preprocessing(path):
     '''
     im = imread(path)
     im = img_as_ubyte(im)
-    
-    print('Increasing the contrast...')
+
+    print('Presegmenting ...')
     print('--------------------------------------------------------------')
-    img = stretch(im)
     
-    print('Done with the contrast!')
-    print('--------------------------------------------------------------')
-    print('Segmenting the algae...')
-    print('--------------------------------------------------------------')
-    al = alg(img)
+    al,mask = pre_segm(im)
     
-    print('Done with the algae!')
+    print('Done Presegmenting!')
     print('--------------------------------------------------------------')
-    print('Triyng to correct the image... ')
+    print('Trying to correct the image... ')
+    print('--------------------------------------------------------------')
     
-    c = correct(al,img)
+    c = correct(im,mask,al)
     
     print('--------------------------------------------------------------')
     print('Done with the correction!')
     print('--------------------------------------------------------------')
+    print('Increasing the contrast...')
+    print('--------------------------------------------------------------')
     
-    return c,al 
+    img = stretch(c)
+    
+    print('Done with the contrast!')
+    print('--------------------------------------------------------------')
+    
+    return img,al 
 
 
 # Drift computation 
@@ -244,6 +259,10 @@ def eucldist(df_t,df_t1,points):
     '''
     one = df_t.iloc[points[0]]
     two = df_t1.iloc[points[1]]
+    # p1 = np.array([one['centroid-1'], one['centroid-0']])
+    # p2 = np.array([two['centroid-1'], two['centroid-0']])
+    # dist = np.linalg.norm(p1-p2)
+    # np.sqrt(np.sum((p1-p2)**2, axis=0))
 
     diff = (two['centroid-1']-one['centroid-1'])**2 + (two['centroid-0']-one['centroid-0'])**2
     dist = np.sqrt(diff)
@@ -275,7 +294,7 @@ def distance(df_t,points):
     return dx,dy
 
 
-def drift(df_t,df_t1,method = 'linear'):
+def drift(df_t,df_t1,method = 'linear',thresh = 50):
     '''
     Parameters
     ----------
@@ -285,7 +304,9 @@ def drift(df_t,df_t1,method = 'linear'):
         position of te algae at time t plus 1.
     method : string, optional
         method to compute te best assignment. The default is 'linear sum'.
-
+    thresh: int, optional
+        a threshold to declare a distance impossible between 2 frames
+        
     Returns
     -------
     distnace: list
@@ -300,19 +321,15 @@ def drift(df_t,df_t1,method = 'linear'):
         - extract the best assignment and compute the 'optimal distance' between the assigned points 
         
     '''
-    #Initialize the cost matrix
-    m = []
+    #Cost matrix
     
-    row = df_t.index.values
-    col = df_t1.index.values
+    pos_row = np.array(list(zip(df_t['centroid-1'], df_t['centroid-0'])))
+    pos_col= np.array(list(zip(df_t1['centroid-1'], df_t1['centroid-0'])))
     
-    for t in row:
-        for t_1 in col:
-            m.append(eucldist(df_t,df_t1,[t,t_1])) #note that here the order of the arguments in the dist function matters 
-            
-    #reshape the matrix (might be a more efficient way to create it)
-    
-    m = np.asarray(m).reshape((len(row),len(col)))
+    m = cdist(pos_row, pos_col)
+
+    m = np.where(m > thresh,1000,m) # if the distance in the distance matric is above a threshold then 
+    #put it to a high value to avoid bad assignments
     
     if method.lower() == 'linear':
         
@@ -329,18 +346,14 @@ def drift(df_t,df_t1,method = 'linear'):
     else:
         return 'Please input a valid method'
     
-    # Initialize the optimal distance list
     
-    distance = []
-    
-    # Besed on the result of the linear assignment compute it
-    
-    for i,j in zip(row_ind,col_ind):
-        distance.append(dist(df_t,df_t1,[row[i],col[j]]))
+    # Based on the result of the linear assignment compute distance
+
+    distance = pos_row[row_ind] - pos_col[col_ind]
         
     return distance
 
-def global_drift(im,method = 'linear'):
+def global_drift(im,method = 'linear',thresh = 50):
     '''
     Parameters
     ----------
@@ -348,6 +361,8 @@ def global_drift(im,method = 'linear'):
         the image where there is drift.
     method : string, optional
         the method to compute the assignment. The default is 'linear sum'.
+    thresh: int, optional
+        a threshold to declare a distance impossible between 2 frames
 
     Returns
     -------
@@ -383,15 +398,16 @@ def global_drift(im,method = 'linear'):
         
         df_t = df_t[df_t.area < 300].reset_index() #reset index to avoid having gaps in index value 
                                                 #(it is used in the dist function)
-        df_t = df_t[df_t.area > 10].reset_index()
+        df_t = df_t[df_t.area > 5].reset_index()
         
         lab = label(im[plane+1,...])
         props = regionprops_table(label_image=lab, properties=('centroid','area'))
         df_t1 = pd.DataFrame(props) 
         df_t1 = df_t1[df_t1.area < 300].reset_index()
-        df_t1 = df_t1[df_t1.area > 10].reset_index()
+        df_t1 = df_t1[df_t1.area > 5].reset_index()
         
-        e = drift(df_t,df_t1,method)
+        e = drift(df_t,df_t1,method,thresh)
+        
         x = [x[0] for x in e]
         y = [x[1] for x in e]
         
@@ -415,6 +431,13 @@ def filtering_drift(dx,dy):
             - begining frame of drift
             - end frame of drift (begining plus 1)
             - the direction of the drift (0 or 1)
+                - the direction of the drift is arbitrary
+                -for x:
+                    - 0 indicates the camera moved to the left
+                    - 1 indicates the camera moved to the right
+                - for y:
+                    - 0 indicates the camera moved up
+                    - 1 indicates the camera moved down
             - the coordinate that changed
             - the displacement in pixels
     res : list
@@ -564,23 +587,28 @@ def create_canva(df_drift,im):
 
     lengy = np.abs(max(maxy)) + np.abs(min(oriy)) + 1 
     
-    diffx = lengx - np.shape(im[0])[0] 
-    diffy = lengy - np.shape(im[0])[1] 
+    dispx = df_drift[df_drift.direction == 1]
+    dispx = dispx[dispx.coord == 'x']
+    one = sum(np.abs(dispx.displacement.values)) #total movement to left in x
     
+    dispy = df_drift[df_drift.direction == 1]
+    dispy = dispy[dispy.coord == 'y']
+    three = sum(dispy.displacement.values) # total movement up in y
+
     canva = np.zeros((np.shape(im)[0],lengy,lengx))
     
-    return canva,diffx,diffy
+    return canva,one,three
 
-def place_img(canva,diffx,diffy,im,df_drift,res):
+def place_img(canva,one,three,im,df_drift,res):
     
     '''
     Parameters
     ----------
     canva : image
         the canve where to 'paint' the image.
-    diffx : int 
+    one : int 
         the variable that tells where to place the first image in x.
-    diffy : int
+    three : int
         the variable that tells where to place the first image in y.
     im : image
         the image to place in the canva.
@@ -597,8 +625,11 @@ def place_img(canva,diffx,diffy,im,df_drift,res):
     Workflow:
     --------
     
-    - Initialize the first frame (still to do: need a way to know how to place 
-                                  the first image)
+    - Initialize the first frame:
+        - To place the first frame, let's image it's on the top left corner
+        - From that the coordinate of where to place the image is just 0,0 
+        minus the total displacement in x to the left and the total 
+        displacement up in y.
     - loop over planes
     - find which coordinate changed and in which direction it went
     - adjust the coordinates accordingly
@@ -607,14 +638,16 @@ def place_img(canva,diffx,diffy,im,df_drift,res):
     
     # Initialize the first frame:
 
-    ymin = 0
-    ymax = np.shape(im[0,...])[0]
+    ymin = 0 + three
+    ymax = np.shape(im[0,...])[0] + three
     
-    xmin = diffx
-    xmax = np.shape(canva[0,...])[1]
+    xmin = 0 + one
+    xmax = np.shape(im[0,...])[0] + one
     
     canva[0,ymin:ymax,xmin:xmax] = im[0]
     counter = 0
+    
+    #plt.imshow(canva[0,...])
     
     for plane in range(np.shape(im)[0]):
         print(f'Placing plane {plane} out of {np.shape(im)[0]} on the canva')
@@ -646,8 +679,8 @@ def place_img(canva,diffx,diffy,im,df_drift,res):
                     xmin = xmin 
                     xmax = xmax 
     
-                    ymin = ymin - np.abs(i.displacement)
-                    ymax = ymax - np.abs(i.displacement)
+                    ymin = ymin + np.abs(i.displacement)
+                    ymax = ymax + np.abs(i.displacement)
                     
                     canva[plane,ymin:ymax,xmin:xmax] = im[i.start]
                 else:
@@ -655,11 +688,210 @@ def place_img(canva,diffx,diffy,im,df_drift,res):
                     xmin = xmin 
                     xmax = xmax 
     
-                    ymin = ymin + np.abs(i.displacement)
-                    ymax = ymax + np.abs(i.displacement)
+                    ymin = ymin - np.abs(i.displacement)
+                    ymax = ymax - np.abs(i.displacement)
                     canva[plane,ymin:ymax,xmin:xmax] = im[i.start]
         else:
             canva[plane,ymin:ymax,xmin:xmax] = im[plane]
     
     
     return canva
+
+def filling_wound(df_props,df_props_wound,laser):
+    
+    '''
+    Parameters
+    ----------
+    df_props : dataframe
+        dataframe with organism properties.
+    df_props_wound : dataframe
+        dataframe with wound properties.
+    laser : int
+        frame where there was laser ablation
+    Returns
+    -------
+    dft : dataframe
+        dataframe with completed rows for when the wound was not segmented.
+    '''
+    # Completing the wound dataframe with the missing frames
+
+    dft = df_props_wound['area']
+    f = [x for x in df_props.label.values if x not in df_props_wound.label.values] # missing indexes
+    
+    # Add a row to the dataframe that contains the value of the previous frame (I am assuming that the change 
+    #in wound area is longer than the time between 2 frames 
+    
+    for i in f:
+        if i <= laser:
+            dft.loc[i] = 0
+        else:
+            dft.loc[i] = dft.loc[i-1]
+        
+    dft.sort_index(inplace=True) 
+    dft = pd.DataFrame(dft)
+    
+    return dft
+
+def clean_results(df_org,df_drift,window_size = 1):
+    '''
+    Parameters
+    ----------
+    dft : Dataframe
+        Dataframe of the organism properties.
+    df_drift : Dataframe
+        Dataframe of the drift moments.
+
+    Returns
+    -------
+    dft : Dataframe
+        Dataframe of the organism properties with corrected drift and interpolation.
+
+    Worklow
+    -------
+    
+    First remove any lines that carry outliers. For that I set up a sliding window. 
+    If the value is twice lower than the average in the sliding window then the row take the value of the previous row.
+    Hypothesis that in between 2 row the difference is low.
+    
+    Then the goal is to correct the drift for that:
+        -Loop over all planes 
+        - if plane in the drift dataframe then correct depending on the corrdinate and the orientation of the movement
+    
+    TO DO:
+        optimize this function that might take a while for big dataframes. Might be a better way to correct the dataframe
+        
+    '''
+    dft = df_org.copy()
+    #times = []
+    
+    for i in range(len(dft.index.values)):
+        
+        if i + window_size > (len(dft.index.values)-1):
+            window_u = 0
+            window_d = window_size
+        elif i-window_size < 0:
+            window_d = 0
+            window_u = window_size
+        else:
+            window_u = window_size
+            window_d = window_size
+        
+        if i in df_drift.end.values:
+            if df_drift[df_drift.end == i].direction.values == 0:
+                
+                if df_drift[df_drift.end == i].coord.values == 'y':
+    
+                    dft.loc[dft.index[i],'centroid-0'] = dft.loc[dft.index[i],'centroid-0'] - np.abs(df_drift[df_drift.end == i].displacement.values)
+                
+                else:
+                    
+                    dft.loc[dft.index[i],'centroid-1'] = dft.loc[dft.index[i],'centroid-1'] - np.abs(df_drift[df_drift.end == i].displacement.values)
+                    
+            else:
+                
+                if df_drift[df_drift.end == i].coord.values == 'y':
+                    
+                    dft.loc[dft.index[i],'centroid-0'] = dft.loc[dft.index[i],'centroid-0'] + np.abs(df_drift[df_drift.end == i].displacement.values)
+                
+                else:
+                    
+                    dft.loc[dft.index[i],'centroid-1'] = dft.loc[dft.index[i],'centroid-1'] + np.abs(df_drift[df_drift.end == i].displacement.values)
+       
+        if 1.5*df_org.iloc[i].area < np.mean(df_org.iloc[i-window_d:i+window_u].area.values) or df_org.iloc[i].area > 1.5*np.mean(df_org.iloc[i-window_d:i+window_u].area.values):
+            dft.loc[dft.index[i],dft.columns == 'area'] = np.mean(df_org.iloc[i-window_d:i+window_u].area.values)
+            dft.loc[dft.index[i],dft.columns == 'centroid-0'] = df_org.loc[dft.index[i-1],dft.columns == 'centroid-0']
+            dft.loc[dft.index[i],dft.columns == 'centroid-1'] = df_org.loc[dft.index[i-1],dft.columns == 'centroid-1']
+            #times.append(dft.index[i])
+
+    dft = pd.DataFrame(dft)
+    
+    return dft
+
+def interpolate_wound(df_wound,df_org,laser,names = ['area','centroid-0','centroid-1','perimeter'],degree= 3):
+    '''
+    Parameters
+    ----------
+    df_wound : Dataframe
+        Dataframe containing the wound properties
+    df_org : Dataframe
+        Dataframe containing the organism properties.
+    laser : int
+        plane where there is the laser.
+    names : list, optional
+        the list of the columns you want to interpolate. The default is ['area','centroid-0','centroid-1','perimeter'].
+
+    Returns
+    -------
+    dft_n : Dataframe
+        Dataframe containing the interpolated values for the columns selected.
+    '''
+    
+    x = df_wound.index.values
+    time_wound = len(df_wound.index.values)
+    real_x = df_org.index.values
+
+    res = []
+
+    for i in names:
+        y = df_wound[i].values   #gather the values
+        spl = InterpolatedUnivariateSpline(x, y ,k=degree) #compute the interpolation function
+        res.append(spl(real_x)) #append the interpolated values to list 
+    
+    dft_n = pd.DataFrame(res).T
+    dft_n = dft_n.set_axis(names,copy = False , axis=1)
+    
+    for i in dft_n.index.values: # replace the values before the laser by 0 (there should not be a wound before)
+        if i < laser:
+            dft_n.loc[i,:] = 0
+
+    return dft_n,time_wound
+
+def segmentation_chanvese(image,
+                        disk_size:int=4,
+                        iteration_nb:int=10):
+    image = np.array(image)
+
+    output_array = np.zeros(image.shape, dtype = bool)
+
+    for t in range(0,image.shape[0]):
+        print(f'{(t/np.shape(image)[0])*100:.2f} % done ...')
+        im_single_t = image[t,:,:]
+        im_filtered_minimum =  rank.minimum(im_single_t, disk(disk_size))
+        im_ms = ms.morphological_chan_vese(im_filtered_minimum, iteration_nb)
+        ms_filled = im_ms
+
+        #detect if its is segmented the right way around (expecting that the background has most area touching the image border)
+        #otherwise invert the image
+
+        amount_edge_false = ms_filled[ms_filled[0,:] == False].shape[0] + ms_filled[ms_filled[-1,:] == False].shape[0] + ms_filled[ms_filled[:,0] == False].shape[0] + ms_filled[ms_filled[:,-1] == False].shape[0]
+        
+        
+        amount_edge_true = ms_filled[ms_filled[0,:] == True].shape[0] + ms_filled[ms_filled[-1,:] == True].shape[0] + ms_filled[ms_filled[:,0] == True].shape[0] + ms_filled[ms_filled[:,-1] == True].shape[0]
+
+        if amount_edge_true < amount_edge_false:
+            pass
+        else:
+            ms_filled = np.logical_not(ms_filled)
+
+        #label connected components in the binary mask
+        #labels, num_features = nd.label(ms_filled)
+        labels, count = skimage.measure.label(ms_filled,return_num=True,connectivity = 1)
+        label_unique = np.unique(labels)
+        
+        #count pixels of each component and sort them by size, excluding the background
+
+        vol_list = []
+        for lab in label_unique:
+            if lab != 0:
+                vol_list.append(np.count_nonzero(labels == lab))
+
+        #create binary array of only the largest component
+        binary_mask = np.zeros(labels.shape)
+        binary_mask = np.where(labels == vol_list.index(max(vol_list))+1, 1, 0)
+
+        output_array[t,:,:] = binary_mask
+
+    return output_array
+
+
+
