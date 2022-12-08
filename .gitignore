@@ -171,3 +171,4 @@ notebooks/segmentation_post_process_holes.ipynb
 notebooks/features_creation.ipynb
 notebooks/segmentation_chanvese.ipynb
 notebooks/segmentation_otsu.ipynb
+*.yml
