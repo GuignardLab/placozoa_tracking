@@ -309,7 +309,7 @@ def drift(df_t,df_t1,method = 'linear',thresh = 50):
         
     Returns
     -------
-    distnace: list
+    distance: list
         the distances between all the assigned point from frame t and t plus 1.
 
     Workflow:
@@ -826,7 +826,7 @@ def interpolate_wound(df_wound,df_org,laser,names = ['area','centroid-0','centro
         Dataframe containing the interpolated values for the columns selected.
     '''
     
-    x = df_wound.index.values
+    x = df_wound.label.values
     time_wound = len(df_wound.index.values)
     real_x = df_org.index.values
 
@@ -874,7 +874,7 @@ def segmentation_chanvese(image,
             ms_filled = np.logical_not(ms_filled)
 
         #label connected components in the binary mask
-        #labels, num_features = nd.label(ms_filled)
+        labels, num_features = nd.label(ms_filled)
         labels, count = skimage.measure.label(ms_filled,return_num=True,connectivity = 1)
         label_unique = np.unique(labels)
         
