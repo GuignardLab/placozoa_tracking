@@ -1,0 +1,138 @@
+{
+  "main": {
+    "id": "8ebb795bfb7dba36",
+    "type": "split",
+    "children": [
+      {
+        "id": "3b719491088494b6",
+        "type": "leaf",
+        "state": {
+          "type": "markdown",
+          "state": {
+            "file": "10_10 - 14_10.md",
+            "mode": "source",
+            "source": false
+          }
+        }
+      }
+    ],
+    "direction": "vertical"
+  },
+  "left": {
+    "id": "ad43f0cc7ec4082c",
+    "type": "split",
+    "children": [
+      {
+        "id": "81c2f9bc6252c479",
+        "type": "tabs",
+        "children": [
+          {
+            "id": "bf16ddefcaa91a02",
+            "type": "leaf",
+            "state": {
+              "type": "file-explorer",
+              "state": {}
+            }
+          },
+          {
+            "id": "f1c4aa609b6e9f4d",
+            "type": "leaf",
+            "state": {
+              "type": "search",
+              "state": {
+                "query": "",
+                "matchingCase": false,
+                "explainSearch": false,
+                "collapseAll": false,
+                "extraContext": false,
+                "sortOrder": "alphabetical"
+              }
+            }
+          },
+          {
+            "id": "9a65a87c36ada688",
+            "type": "leaf",
+            "state": {
+              "type": "starred",
+              "state": {}
+            }
+          }
+        ]
+      }
+    ],
+    "direction": "horizontal",
+    "width": 300
+  },
+  "right": {
+    "id": "38313db3d73d432e",
+    "type": "split",
+    "children": [
+      {
+        "id": "df3f3f9e8141e0ca",
+        "type": "tabs",
+        "children": [
+          {
+            "id": "f3dffc11730575b3",
+            "type": "leaf",
+            "state": {
+              "type": "backlink",
+              "state": {
+                "file": "10_10 - 14_10.md",
+                "collapseAll": false,
+                "extraContext": false,
+                "sortOrder": "alphabetical",
+                "showSearch": false,
+                "searchQuery": "",
+                "backlinkCollapsed": false,
+                "unlinkedCollapsed": true
+              }
+            }
+          },
+          {
+            "id": "d183cca967e5befb",
+            "type": "leaf",
+            "state": {
+              "type": "outgoing-link",
+              "state": {
+                "file": "10_10 - 14_10.md",
+                "linksCollapsed": false,
+                "unlinkedCollapsed": true
+              }
+            }
+          },
+          {
+            "id": "773bd5810f2280a8",
+            "type": "leaf",
+            "state": {
+              "type": "tag",
+              "state": {
+                "sortOrder": "frequency",
+                "useHierarchy": true
+              }
+            }
+          },
+          {
+            "id": "b92ff67560a5f144",
+            "type": "leaf",
+            "state": {
+              "type": "outline",
+              "state": {
+                "file": "10_10 - 14_10.md"
+              }
+            }
+          }
+        ]
+      }
+    ],
+    "direction": "horizontal",
+    "width": 300,
+    "collapsed": true
+  },
+  "active": "3b719491088494b6",
+  "lastOpenFiles": [
+    "Ideas for the project.md",
+    "().md",
+    "10_10 - 14_10.md",
+    "placozoa_tracking/data/results/figures/chanvese/all_features.png"
+  ]
+}
