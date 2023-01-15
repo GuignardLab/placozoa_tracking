@@ -150,7 +150,6 @@ def correct(raw_img,pre_segm,mask_alg):
 
         #correct the image based on the substraction
         new_image[plane,...] = raw_img[plane,...] * (mask_img == 0.)
-        #plt.imshow(new_image[plane,...])
         
         new_image[plane,...][new_image[plane,...] == 0] = np.mean(raw_img[plane,...]) # change the value of the algae by 50 (arbitrary)
 
@@ -334,7 +333,7 @@ def drift(df_t,df_t1,method = 'linear',thresh = 50):
     if method.lower() == 'linear':
         
         # Perform linear sum assignment
-
+ 
         row_ind, col_ind = linear_sum_assignment(m)
         
     elif method.lower() == 'bipartite':
